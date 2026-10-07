@@ -3,20 +3,21 @@ import type { Exchange, IpoRecord } from '../types.ts';
 /**
  * Derive the online winning rate from disclosure.
  *
- * Every 配号 is one shot at `sharesPerTicket` shares, and the exchange sells
- * `onlineIssueShares` to retail, so the number of winning numbers is
- * onlineIssueShares / sharesPerTicket. The rate per ticket is therefore:
+ * Each 配号 (subscription ticket) is one entry in the lottery; the exchange
+ * draws winning numbers until the online tranche is allocated. The winning
+ * rate per ticket is therefore the reciprocal of the oversubscription multiple:
  *
- *     P(win) = sharesPerTicket / (onlineIssueShares * oversubscriptionMultiple)
+ *     P(win) = 1 / onlineMultiple
  *
- * The multiple is quoted against the initial online tranche, before the
- * 网上/网下 回拨 top-up, which is why this is a derived estimate and labelled
- * as such wherever it surfaces.
+ * Validated against a published announcement: 沈鼓集团 (601091) discloses a
+ * final 网上中签率 of 0.04703721%, and the data feed's ONLINE_ES_MULTIPLE of
+ * 2125.98 gives 1/2125.98 = 0.04704%. Exact match, so the feed's multiple is
+ * the post-回拨 final figure, which is the correct one to use.
  */
 export function winningRate(ipo: IpoRecord): number | null {
-  const { sharesPerTicket, onlineIssueShares, onlineMultiple } = ipo;
-  if (!sharesPerTicket || !onlineIssueShares || !onlineMultiple || onlineMultiple <= 0) return null;
-  return sharesPerTicket / (onlineIssueShares * onlineMultiple);
+  const { onlineMultiple } = ipo;
+  if (!onlineMultiple || onlineMultiple <= 0) return null;
+  return 1 / onlineMultiple;
 }
 
 /**

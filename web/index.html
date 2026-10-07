@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>159201 vs 个人复制策略收益实验室</title>
+<style>
+/*__CSS__*/
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <p class="kicker">华夏国证自由现金流 ETF (159201) · 基于真实公开数据的量化研究</p>
+    <h1>个人复制策略收益实验室</h1>
+    <p class="sub" id="fundLine">加载数据中……</p>
+    <div class="legend" aria-label="数据来源图例">
+      <span class="tag t-disclosed">真实披露数据</span>
+      <span class="tag t-statistical">历史统计估计</span>
+      <span class="tag t-assumption">模型假设</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="card controls" aria-label="输入">
+    <h2>两个输入，其余全部自动计算</h2>
+    <div class="control-grid">
+      <div class="control">
+        <label for="capital">本金（元）</label>
+        <input id="capital" type="number" min="10000" step="10000" value="1000000">
+        <div class="quick" id="capitalQuick"></div>
+      </div>
+      <div class="control">
+        <label for="method">拟合方式</label>
+        <select id="method"></select>
+        <p class="hint" id="methodHint"></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card verdict" aria-label="结论">
+    <h2>① 综合结论 <span class="tag t-statistical">历史统计估计</span></h2>
+    <div id="verdict"></div>
+  </section>
+
+  <section class="card" aria-label="收益分解">
+    <h2>② 收益分解：超额来自哪里 <span class="tag t-statistical">历史统计估计</span></h2>
+    <p class="note">个人复制相对直接买 159201 的年化差异，单位 %/年。正为个人占优。</p>
+    <div id="decomp"></div>
+  </section>
+
+  <section class="card" aria-label="组合">
+    <h2>③ 我的组合 <span class="tag t-disclosed">真实披露数据</span></h2>
+    <div id="portfolio"></div>
+  </section>
+
+  <section class="card" aria-label="打新">
+    <h2>④ 网上打新期望 <span class="tag t-statistical">历史统计估计</span></h2>
+    <div id="ipo"></div>
+  </section>
+
+  <section class="card" aria-label="股息与税">
+    <h2>⑤ 股息与税收链条 <span class="tag t-disclosed">真实披露数据</span> + <span class="tag t-statistical">历史统计估计</span></h2>
+    <div id="tax"></div>
+  </section>
+
+  <section class="card" aria-label="回测">
+    <h2>⑥ 历史回测 <span class="tag t-disclosed">真实披露数据</span></h2>
+    <p class="note">按各报告期披露权重持有至下期披露，样本外。基金成立于 2025-02-19，此前无真实持仓。</p>
+    <div class="charts">
+      <div>
+        <h3>累计收益曲线（归一）</h3>
+        <canvas id="chartCum" width="860" height="300"></canvas>
+      </div>
+      <div>
+        <h3>回撤曲线</h3>
+        <canvas id="chartDd" width="860" height="200"></canvas>
+      </div>
+    </div>
+    <div id="backtestTable"></div>
+  </section>
+
+  <section class="card" aria-label="资金规模">
+    <h2>⑦ 资金规模效应 <span class="tag t-statistical">历史统计估计</span></h2>
+    <p class="note">同一拟合方式下，本金从 10 万到 1000 万的年化超额（%/年）与打新/税务贡献。</p>
+    <div id="sweep"></div>
+  </section>
+
+  <section class="card" aria-label="方法对比">
+    <h2>⑧ 拟合方式对比（当前本金） <span class="tag t-statistical">历史统计估计</span></h2>
+    <div id="methods"></div>
+  </section>
+
+  <section class="card" aria-label="敏感性">
+    <h2>⑨ 结论有多脆弱：敏感性 <span class="tag t-assumption">模型假设</span></h2>
+    <p class="note">保持本金与拟合方式不变，只动三个最不确定的假设，看结论何时翻转。</p>
+    <div id="sensitivity"></div>
+  </section>
+
+  <section class="card" aria-label="基金打新">
+    <h2>⑩ 基金规模稀释：159201 自己的打新还剩多少 <span class="tag t-disclosed">真实披露数据</span></h2>
+    <div id="dilution"></div>
+  </section>
+
+  <section class="card" aria-label="方法与来源">
+    <h2>⑪ 方法、假设与数据来源</h2>
+    <div id="methodology"></div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <p>本页面所有数字均可追溯：每个面板标注了数据来源类型。模型假设集中列在 ⑪ 中。市场有风险，历史不预示未来。</p>
+</footer>
+
+<script>
+/*__MODEL__*/
+</script>
+<script>
+window.LAB_DATA = /*__DATA__*/;
+</script>
+<script>
+/*__APP__*/
+</script>
+</body>
+</html>

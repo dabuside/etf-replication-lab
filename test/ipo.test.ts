@@ -66,18 +66,27 @@ describe('market value to 配号 conversion', () => {
 });
 
 describe('winning rate derivation', () => {
-  test('is ticket size over total valid demand', () => {
-    // 500 shares per ticket, 10m shares offered at 3,000x oversubscription.
+  test('is the reciprocal of the oversubscription multiple', () => {
+    // 3,000x oversubscribed -> one ticket in 3,000 wins.
     const p = winningRate(ipo());
     assert.ok(p !== null);
-    // 500 / (10,000,000 * 3,000) = 1.6667e-8
-    assert.ok(Math.abs(p - 1.6667e-8) < 1e-12);
+    assert.ok(Math.abs(p - 1 / 3000) < 1e-12);
   });
 
-  test('returns null when the disclosure is incomplete', () => {
+  test('matches a published 中签率 announcement', () => {
+    // 沈鼓集团 (601091): final 网上中签率 0.04703721%, feed multiple 2125.98.
+    const shengu = ipo({ onlineMultiple: 2125.98 });
+    const p = winningRate(shengu);
+    assert.ok(p !== null);
+    assert.ok(Math.abs(p * 100 - 0.04704) < 0.00001);
+  });
+
+  test('needs only the multiple; share counts are not inputs to the rate', () => {
+    // The rate is 1/multiple by construction, so missing tranche sizes cannot
+    // break it. Only a missing multiple makes the rate unobservable.
+    assert.ok(winningRate(ipo({ onlineIssueShares: null })) !== null);
+    assert.ok(winningRate(ipo({ sharesPerTicket: null })) !== null);
     assert.equal(winningRate(ipo({ onlineMultiple: null })), null);
-    assert.equal(winningRate(ipo({ onlineIssueShares: null })), null);
-    assert.equal(winningRate(ipo({ sharesPerTicket: null })), null);
   });
 
   test('rejects a non-positive oversubscription multiple', () => {

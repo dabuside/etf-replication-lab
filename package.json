@@ -9,14 +9,15 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --test test/",
-    "test:watch": "node --test --watch test/",
+    "test": "node --test \"test/*.test.ts\"",
+    "test:watch": "node --test --watch \"test/*.test.ts\"",
     "scrape": "node src/scrape/cli.ts",
     "derive": "node src/cli/derive.ts",
-    "backtest": "node src/cli/backtest.ts",
-    "build": "node src/cli/build.ts",
-    "dev": "vite",
-    "verify": "npm run typecheck && npm run test && npm run build"
+    "build:model": "node src/cli/bundle-model.ts",
+    "build": "npm run build:model && node src/cli/build.ts",
+    "smoke": "node scripts/smoke.ts",
+    "dev": "npm run build && vite preview --open --port 4173",
+    "verify": "npm run typecheck && npm run test && npm run build && npm run smoke"
   },
   "dependencies": {
     "pdfjs-dist": "4.10.38"

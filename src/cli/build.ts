@@ -1,75 +1,58 @@
 /**
- * Inlines the frozen dataset and the model into one self-contained HTML file.
- * No backend, no CDN, no build-time network access: the output opens from disk.
+ * Produces dist/index.html: a single self-contained page with no backend, no
+ * CDN and no runtime fetch. The model bundle, the transpiled app and the
+ * trimmed dataset are all inlined, so the file opens straight from disk.
  */
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 
-const ROOT = new URL('../../', import.meta.url).pathname;
-const OUT_DIR = join(ROOT, 'dist');
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const OUT = join(ROOT, 'dist', 'index.html');
 
-const read = (p: string) => readFile(join(ROOT, p), 'utf8');
-
-async function main(): Promise<void> {
-  await mkdir(OUT_DIR, { recursive: true });
-
-  const [html, css, app] = await Promise.all([
-    read('web/index.html'),
-    read('web/style.css'),
-    read('web/app.js'),
-  ]);
-
-  const dataset = await readFile(join(ROOT, 'data/derived/dataset.json'), 'utf8');
-  const model = await read('src/model.js');
-
-  // The dataset is ~1.9MB; ship only what the page renders.
-  const parsed = JSON.parse(dataset) as Record<string, unknown>;
-  const trimmed = trimDataset(parsed);
-  const payload = JSON.stringify(trimmed);
-
-  const out = html
-    .replace('/*__CSS__*/', css)
-    .replace('/*__MODEL__*/', model)
-    .replace('/*__DATA__*/', payload);
-
-  const target = join(OUT_DIR, 'index.html');
-  await writeFile(target, out, 'utf8');
-  console.log(`wrote dist/index.html (${(out.length / 1024).toFixed(0)} KB, dataset ${(payload.length / 1024).toFixed(0)} KB)`);
+function transpileApp(source: string): string {
+  const out = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.None, target: ts.ScriptTarget.ES2020 },
+    fileName: 'app.ts',
+  });
+  return out.outputText;
 }
 
 /**
- * Drop fields the page never reads. Keeping 1.9MB of daily prices and curves in
- * a file meant to be opened locally would make it sluggish for no benefit.
+ * Drop fields the page never reads. Daily prices and full-date curves would
+ * make a locally-opened file sluggish for no benefit; weekly-thinned curves
+ * keep the chart shape.
  */
 function trimDataset(d: Record<string, unknown>): Record<string, unknown> {
-  const keep = <T extends Record<string, unknown>>(o: T, fields: Array<keyof T>): T => {
-    const out = {} as T;
-    for (const f of fields) if (f in o) out[f] = o[f];
-    return out;
-  };
-
-  const snapshots = (d['snapshots'] as Array<Record<string, unknown>>).map((s) =>
-    keep(s, ['period', 'asOf', 'holdings']),
-  );
   const backtests = d['backtests'] as Record<string, Record<string, unknown>>;
-  const trimmedBacktests: Record<string, unknown> = {};
+  const slim: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(backtests)) {
-    // Thin the chart curves to weekly points; the shape survives, the bytes don't.
     const curve = (v['curve'] as Array<{ date: string; value: number }>) ?? [];
     const fundCurve = (v['fundCurve'] as Array<{ date: string; value: number }>) ?? [];
-    trimmedBacktests[k] = keep(v, [
-      'label', 'totalReturnPct', 'annualisedReturnPct', 'volatilityPct', 'sharpe',
-      'maxDrawdownPct', 'trackingErrorPct', 'beta', 'alphaPct', 'correlation',
-      'activeSharePct', 'observations', 'windows', 'notes',
-    ]);
-    (trimmedBacktests[k] as Record<string, unknown>)['curve'] = thin(curve);
-    (trimmedBacktests[k] as Record<string, unknown>)['fundCurve'] = thin(fundCurve);
+    slim[k] = {
+      label: v['label'],
+      totalReturnPct: v['totalReturnPct'],
+      annualisedReturnPct: v['annualisedReturnPct'],
+      volatilityPct: v['volatilityPct'],
+      sharpe: v['sharpe'],
+      maxDrawdownPct: v['maxDrawdownPct'],
+      trackingErrorPct: v['trackingErrorPct'],
+      beta: v['beta'],
+      alphaPct: v['alphaPct'],
+      correlation: v['correlation'],
+      activeSharePct: v['activeSharePct'],
+      observations: v['observations'],
+      windows: v['windows'],
+      notes: v['notes'],
+      curve: thin(curve),
+      fundCurve: thin(fundCurve),
+    };
   }
 
   return {
-    snapshot: (d['snapshot'] as Record<string, unknown>) ?? null,
-    snapshots,
-    backtests: trimmedBacktests,
+    snapshot: d['snapshot'],
+    backtests: slim,
     tax: d['tax'],
     dividend: d['dividend'],
     fees: d['fees'],
@@ -80,17 +63,48 @@ function trimDataset(d: Record<string, unknown>): Record<string, unknown> {
     fundMaxDrawdownPct: d['fundMaxDrawdownPct'],
     fundSharpe: d['fundSharpe'],
     trackingErrorPct: d['trackingErrorPct'],
+    betaGapProxy: d['betaGapProxy'],
     meta: d['meta'],
-    /** IPO sample is needed live for the per-IPO expectation calculation. */
+    // The per-IPO expectation loop runs live in the browser, so the sample ships whole.
     ipoSample: d['ipoSample'],
-    nav: d['nav'],
   };
 }
 
 function thin(points: Array<{ date: string; value: number }>): Array<{ date: string; value: number }> {
-  if (points.length <= 200) return points;
-  const step = Math.ceil(points.length / 200);
+  if (points.length <= 220) return points;
+  const step = Math.ceil(points.length / 220);
   return points.filter((_, i) => i % step === 0 || i === points.length - 1);
+}
+
+async function main(): Promise<void> {
+  const [html, css, appTs, modelJs] = await Promise.all([
+    readFile(join(ROOT, 'web', 'index.html'), 'utf8'),
+    readFile(join(ROOT, 'web', 'style.css'), 'utf8'),
+    readFile(join(ROOT, 'web', 'app.ts'), 'utf8'),
+    readFile(join(ROOT, 'web', 'vendor', 'model.bundle.js'), 'utf8'),
+  ]);
+  const dataset = JSON.parse(await readFile(join(ROOT, 'data', 'derived', 'dataset.json'), 'utf8')) as Record<string, unknown>;
+  const payload = JSON.stringify(trimDataset(dataset)).replace(/</g, '\\u003c');
+
+  const appJs = transpileApp(appTs);
+
+  // Syntax-check the transpiled app before inlining it.
+  const { execFile } = await import('node:child_process');
+  const tmp = join(ROOT, 'dist', '.app.check.mjs');
+  await mkdir(join(ROOT, 'dist'), { recursive: true });
+  await writeFile(tmp, appJs, 'utf8');
+  await new Promise<void>((resolve, reject) => {
+    execFile(process.execPath, ['--check', tmp], (err) => (err ? reject(err) : resolve()));
+  });
+
+  const out = html
+    .replace('/*__CSS__*/', css)
+    .replace('/*__MODEL__*/', modelJs)
+    .replace('/*__DATA__*/', payload)
+    .replace('/*__APP__*/', appJs);
+
+  await writeFile(OUT, out, 'utf8');
+  console.log(`wrote dist/index.html (${(out.length / 1024).toFixed(0)} KB; app ${(appJs.length / 1024).toFixed(0)} KB, data ${(payload.length / 1024).toFixed(0)} KB)`);
 }
 
 await main();

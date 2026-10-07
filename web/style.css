@@ -1,0 +1,111 @@
+:root {
+  --bg: #f6f7f9;
+  --card: #ffffff;
+  --ink: #1a2332;
+  --muted: #5b6b82;
+  --line: #e3e8ef;
+  --accent: #1b5bd7;
+  --good: #0c7a3d;
+  --bad: #c0392b;
+  --warn: #9a6a00;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  line-height: 1.65;
+}
+
+.wrap { max-width: 1020px; margin: 0 auto; padding: 0 20px; }
+
+.hero {
+  background: linear-gradient(135deg, #0f2a5c, #1b5bd7);
+  color: #fff;
+  padding: 40px 0 32px;
+}
+.hero h1 { margin: 6px 0 8px; font-size: 30px; }
+.kicker { margin: 0; opacity: 0.85; font-size: 14px; }
+.sub { margin: 0 0 12px; opacity: 0.92; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 22px 24px;
+  margin: 18px 0;
+}
+.card h2 { margin: 0 0 10px; font-size: 19px; }
+.card h3 { margin: 18px 0 8px; font-size: 15px; color: var(--muted); }
+.note { color: var(--muted); font-size: 13px; margin: 0 0 10px; }
+.hint { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
+
+.tag {
+  display: inline-block;
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.t-disclosed { background: #e3f2e7; color: var(--good); border: 1px solid #bfe3c9; }
+.t-statistical { background: #e8effc; color: var(--accent); border: 1px solid #c3d4f5; }
+.t-assumption { background: #fdf3e0; color: var(--warn); border: 1px solid #f0dcae; }
+
+.controls h2 { margin-bottom: 14px; }
+.control-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 700px) { .control-grid { grid-template-columns: 1fr; } }
+.control label { display: block; font-weight: 600; margin-bottom: 6px; }
+.control input, .control select {
+  width: 100%;
+  font-size: 17px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.quick { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.quick button {
+  border: 1px solid var(--line);
+  background: #f2f5fa;
+  border-radius: 999px;
+  padding: 4px 14px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.quick button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+table.data { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 10px 0; }
+table.data th, table.data td { border-bottom: 1px solid var(--line); padding: 7px 8px; text-align: right; }
+table.data th:first-child, table.data td:first-child { text-align: left; }
+table.data th { color: var(--muted); font-weight: 600; background: #f8fafc; }
+table.data tr.total td { font-weight: 700; border-top: 2px solid var(--ink); }
+
+.num-pos { color: var(--good); font-weight: 600; }
+.num-neg { color: var(--bad); font-weight: 600; }
+
+.verdict-big { font-size: 34px; font-weight: 800; margin: 4px 0; }
+.verdict-sub { color: var(--muted); }
+
+canvas { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.charts { display: grid; gap: 14px; }
+
+.holdings { max-height: 420px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; }
+
+.kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin: 12px 0; }
+.kv .cell { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: #fbfcfe; }
+.kv .cell .k { font-size: 12px; color: var(--muted); }
+.kv .cell .v { font-size: 19px; font-weight: 700; }
+
+.chain { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 6px; align-items: stretch; margin: 12px 0; }
+.chain .link { border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: #fbfcfe; font-size: 13px; }
+.chain .arrow { align-self: center; color: var(--muted); font-size: 20px; }
+@media (max-width: 700px) { .chain { grid-template-columns: 1fr; } .chain .arrow { display: none; } }
+
+ol.src { font-size: 13px; color: var(--muted); padding-left: 20px; }
+ul.assume { font-size: 13.5px; padding-left: 20px; }
+
+.foot { color: var(--muted); font-size: 12.5px; padding: 10px 20px 40px; }
+.warnbox { border-left: 4px solid var(--warn); background: #fffdf5; padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 12px 0; font-size: 13.5px; }
