@@ -8,8 +8,8 @@ import {
   MARKET_VALUE_PER_TICKET,
   profitPerWin,
   ticketsFromMarketValue,
+  winningRate,
 } from '../src/domain/ipo.ts';
-import { winningRate } from '../src/scrape/ipo.ts';
 import type { IpoRecord } from '../src/types.ts';
 
 function ipo(over: Partial<IpoRecord> = {}): IpoRecord {

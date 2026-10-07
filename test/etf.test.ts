@@ -112,17 +112,18 @@ describe('NAV date timezone (regression)', () => {
   // before. Reading it with toISOString() shifts every date back one day and
   // silently destroys the backtest's correlations.
   test('maps a Beijing-midnight epoch to its own calendar date', () => {
-    assert.equal(beijingDate(1739923200000), '2025-02-19'); // 00:00 CST 19 Feb
+    // 1739894400000 = 2025-02-18T16:00:00Z = 2025-02-19 00:00 Beijing.
+    assert.equal(beijingDate(1739894400000), '2025-02-19');
   });
 
   test('does not roll back to the previous day', () => {
-    const naive = new Date(1739923200000).toISOString().slice(0, 10);
+    const naive = new Date(1739894400000).toISOString().slice(0, 10);
     assert.equal(naive, '2025-02-18');
-    assert.notEqual(beijingDate(1739923200000), naive);
+    assert.notEqual(beijingDate(1739894400000), naive);
   });
 
   test('the fund\'s first NAV point is its inception date, 2025-02-19', () => {
-    const payload = `var apidata={Data_netWorthTrend:[{"x":1739923200000,"y":1.0}],Data_ACWorthTrend:[]};`;
+    const payload = `var apidata={Data_netWorthTrend:[{"x":1739894400000,"y":1.0}],Data_ACWorthTrend:[]};`;
     assert.equal(parseNavHistory(payload)[0]!.date, '2025-02-19');
   });
 });

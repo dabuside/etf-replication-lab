@@ -32,12 +32,12 @@ export async function extractPdfText(bytes: Uint8Array): Promise<string> {
   const standardFontDataUrl =
     new URL('../../node_modules/pdfjs-dist/standard_fonts/', import.meta.url).href;
 
-  const doc: PdfDoc = await lib.getDocument({
+  const doc = (await lib.getDocument({
     data: bytes,
     useSystemFonts: true,
     standardFontDataUrl,
     isEvalSupported: false,
-  }).promise;
+  }).promise) as unknown as PdfDoc;
 
   const pages: string[] = [];
   for (let p = 1; p <= doc.numPages; p++) {

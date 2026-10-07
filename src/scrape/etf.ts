@@ -1,5 +1,5 @@
 import { fetchJson, fetchText } from '../http.ts';
-import type { Exchange, HoldingsSnapshot, NavPoint } from '../types.ts';
+import type { Exchange, HoldingsSnapshot, NavPoint, UnderwritingParticipation } from '../types.ts';
 
 const FUND = '159201';
 const EM_F10 = 'http://fundf10.eastmoney.com/';
@@ -149,8 +149,8 @@ export function parseUnderwriting(text: string, period: string, asOf: string): U
     asOf,
     lane: 'offline',
     entries,
-    totalShares: entries.reduce((s, e) => s + e.shares, 0),
-    totalAmountYuan: cents(entries.reduce((s, e) => s + e.amountYuan, 0)),
+    totalShares: entries.reduce((s: number, e) => s + e.shares, 0),
+    totalAmountYuan: cents(entries.reduce((s: number, e) => s + e.amountYuan, 0)),
   };
 }
 

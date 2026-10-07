@@ -1,5 +1,23 @@
-import { winningRate } from '../scrape/ipo.ts';
 import type { Exchange, IpoRecord } from '../types.ts';
+
+/**
+ * Derive the online winning rate from disclosure.
+ *
+ * Every 配号 is one shot at `sharesPerTicket` shares, and the exchange sells
+ * `onlineIssueShares` to retail, so the number of winning numbers is
+ * onlineIssueShares / sharesPerTicket. The rate per ticket is therefore:
+ *
+ *     P(win) = sharesPerTicket / (onlineIssueShares * oversubscriptionMultiple)
+ *
+ * The multiple is quoted against the initial online tranche, before the
+ * 网上/网下 回拨 top-up, which is why this is a derived estimate and labelled
+ * as such wherever it surfaces.
+ */
+export function winningRate(ipo: IpoRecord): number | null {
+  const { sharesPerTicket, onlineIssueShares, onlineMultiple } = ipo;
+  if (!sharesPerTicket || !onlineIssueShares || !onlineMultiple || onlineMultiple <= 0) return null;
+  return sharesPerTicket / (onlineIssueShares * onlineMultiple);
+}
 
 /**
  * 网上发行 subscription mechanics.

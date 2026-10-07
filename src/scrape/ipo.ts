@@ -1,4 +1,5 @@
 import { fetchJson } from '../http.ts';
+import { winningRate } from '../domain/ipo.ts';
 import type { Board, Exchange, IpoRecord } from '../types.ts';
 
 const DC = 'https://datacenter-web.eastmoney.com/api/data/v1/get';
@@ -70,30 +71,4 @@ function normalizeRow(r: Record<string, unknown>): IpoRecord {
   };
 }
 
-/**
- * Derive the online winning rate from disclosure.
- *
- * Every 配号 (subscription ticket) is one shot at `sharesPerTicket` shares.
- * The exchange sells `onlineIssueShares` to retail; total winning numbers are
- * therefore onlineIssueShares / sharesPerTicket. The winning rate is simply:
- *
- *     P(win per ticket) = winningNumbers / totalTickets
- *                       = sharesPerTicket / (onlineIssueShares * oversubscription)
- *
- * We cross-check against the published multiples because `INITIAL_MULTIPLE`
- * is quoted against the *initial* offline-adjusted online tranche, which the
- * issuer later tops up via the 网上/网下 回拨 mechanism.
- */
-export function winningRate(ipo: IpoRecord): number | null {
-  const { sharesPerTicket, onlineIssueShares, onlineMultiple } = ipo;
-  if (!sharesPerTicket || !onlineIssueShares || !onlineMultiple || onlineMultiple <= 0) return null;
-  return sharesPerTicket / (onlineIssueShares * onlineMultiple);
-}
 
-/** Market-value required per subscription ticket, in 元. */
-export const MARKET_VALUE_PER_TICKET: Record<'SH' | 'SZ', number> = {
-  // SH: every 10,000 元 of SH market value buys one 1,000-share ticket.
-  SH: 10_000,
-  // SZ: every 5,000 元 of SZ market value buys one 500-share ticket.
-  SZ: 5_000,
-};

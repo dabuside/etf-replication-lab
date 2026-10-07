@@ -30,6 +30,8 @@ export interface Assumptions {
   annualTurnover: number;
   /** Risk-free rate for Sharpe. */
   riskFreeRate: number;
+  /** The fund's own all-in fee, read from the dataset rather than hardcoded. */
+  etfFeeCostPct: number;
   /** AUM used to compare the fund's own 打新 dilution. */
   etfAumYuan: number;
 }
@@ -40,13 +42,19 @@ export interface Assumptions {
  * 模型假设 with a one-line rationale.
  */
 export const ASSUMPTIONS: Assumptions = {
-  // 万2.5 is the standard retail commission; the fund's own fee is 0.20%/yr.
+  // 万2.5 is the standard retail commission.
   commissionRate: 0.00025,
+  // 财税[2023]39号 halved the stamp duty to 0.05%; it is charged on sale only.
   stampDutySellRate: 0.0005,
   transferFeeRate: 0.00001,
+  // Slippage and impact for a single-stock retail order, both ways.
   impactRate: 0.0005,
+  // One full basket turnover per year, matching the index's quarterly rebalance
+  // of a Top-N book.
   annualTurnover: 1.0,
   riskFreeRate: 0.015,
+  // Overwritten from the dataset's disclosed 0.15% + 0.05%.
+  etfFeeCostPct: 0.2,
   etfAumYuan: 15_146_000_000,
 };
 
@@ -163,13 +171,21 @@ export function tradingCostPct(assumptions: Assumptions = ASSUMPTIONS): number {
   return roundTrip * assumptions.annualTurnover * 100;
 }
 
-export function compute(dataset: Dataset, capital: number, method: ReplicationMethod, knobs?: Partial<SensitivityKnobs>): ModelResult {
+export function compute(
+  dataset: Dataset,
+  capital: number,
+  method: ReplicationMethod,
+  knobs?: Partial<SensitivityKnobs>,
+): ModelResult {
   const k: SensitivityKnobs = {
     winRateMultiplier: knobs?.winRateMultiplier ?? 1,
     premiumMultiplier: knobs?.premiumMultiplier ?? 1,
     ...(knobs?.etfTaxRateOverride !== undefined ? { etfTaxRateOverride: knobs.etfTaxRateOverride } : {}),
   };
-  const assumptions = ASSUMPTIONS;
+  const assumptions: Assumptions = {
+    ...ASSUMPTIONS,
+    etfFeeCostPct: dataset.fees.totalPct,
+  };
   const holdings = dataset.snapshot.holdings;
   const portfolio = buildPortfolio(holdings, method);
   const split = exchangeSplit(portfolio.weights);
@@ -182,18 +198,20 @@ export function compute(dataset: Dataset, capital: number, method: ReplicationMe
     knobs: k,
   });
 
-  const etfTaxRate = k.etfTaxRateOverride ?? dataset.tax.etfEffectiveRatePct;
+  const etfTaxRate = k.etfTaxRateOverride ?? dataset.tax.etfEffectiveRate;
   const basketYield = dataset.dividend.portfolioDividendYieldPct;
 
-  // Stock beta contribution: the replicated basket's own price drift is unknown
-  // ex ante, so we anchor on the fund's tracking record and let the fitted
-  // tracking error stand in for the residual gap. The UI must label this as such.
-  const stockBetaContributionPct =
-    dataset.fundAnnualisedReturnPct - dataset.fundAnnualisedReturnPct * (1 - Math.min(0.9, dataset.betaGapProxy));
+  // Stock returns are assumed equal on both sides (中性假设): a Top-N basket
+  // neither systematically beats nor lags the fund's gross stock return. The
+  // backtest panel shows what actually happened; the forward model does not
+  // pretend to predict active stock-picking alpha. Tracking error is therefore
+  // reported as RISK, never subtracted from expected return.
+  const stockBetaContributionPct = dataset.fundAnnualisedReturnPct;
 
-  const personalDividendTaxPct = -(basketYield * 0); // >1年 holding: zero
-  const etfDividendTaxPct = -(basketYield * (etfTaxRate / 100));
-  const ipoEdgePct = (ipo.expectedProfitPerYear / capital) * 100;
+  const personalDividendTaxPct = 0; // >1年 holding: zero, by statute
+  // The `|| 0` normalises -0 to 0 when the override rate is zero.
+  const etfDividendTaxPct = -(basketYield * (etfTaxRate / 100)) || 0;
+  const ipoEdgePct = capital > 0 ? (ipo.expectedProfitPerYear / capital) * 100 : 0;
   const feeSavingPct = assumptions.etfFeeCostPct;
   const tc = tradingCostPct(assumptions);
 
@@ -205,17 +223,14 @@ export function compute(dataset: Dataset, capital: number, method: ReplicationMe
     ipoEdgePct,
     feeSavingPct,
     tradingCostPct: -tc,
-    trackingErrorPct: -dataset.trackingErrorPct,
+    // Positive figure, risk only, excluded from the total by construction.
+    trackingErrorPct: dataset.trackingErrorPct,
     totalEdgePct: 0,
   };
   breakdown.totalEdgePct =
-    breakdown.personalDividendTaxPct -
-    breakdown.etfDividendTaxPct +
-    breakdown.ipoEdgePct -
-    dataset.etfIpoContributionPct +
-    breakdown.feeSavingPct +
-    breakdown.tradingCostPct +
-    breakdown.trackingErrorPct;
+    (breakdown.personalDividendTaxPct - breakdown.etfDividendTaxPct) +
+    (breakdown.ipoEdgePct - dataset.etfIpoContributionPct) +
+    (breakdown.feeSavingPct + breakdown.tradingCostPct);
 
   return {
     capital,
