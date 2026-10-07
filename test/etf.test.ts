@@ -1,7 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { exchangeOf, parseHoldingRows, parseHoldingsAll, parseNavHistory, parseReportFinancials, parseUnderwriting } from '../src/scrape/etf.ts';
+import { beijingDate, exchangeOf, parseHoldingRows, parseHoldingsAll, parseNavHistory, parseReportFinancials, parseUnderwriting } from '../src/scrape/etf.ts';
 import { parseEmKlines, parseThsIndex, parseTxKlines } from '../src/scrape/stocks.ts';
 
 /** Trimmed capture of the live 2026 holdings payload. */
@@ -104,6 +104,26 @@ describe('NAV history parsing', () => {
 
   test('throws rather than returning empty on a shape change', () => {
     assert.throws(() => parseNavHistory('var x=1;'), /Data_netWorthTrend/);
+  });
+});
+
+describe('NAV date timezone (regression)', () => {
+  // Upstream stamps each point at Beijing midnight, i.e. 16:00 UTC the day
+  // before. Reading it with toISOString() shifts every date back one day and
+  // silently destroys the backtest's correlations.
+  test('maps a Beijing-midnight epoch to its own calendar date', () => {
+    assert.equal(beijingDate(1739923200000), '2025-02-19'); // 00:00 CST 19 Feb
+  });
+
+  test('does not roll back to the previous day', () => {
+    const naive = new Date(1739923200000).toISOString().slice(0, 10);
+    assert.equal(naive, '2025-02-18');
+    assert.notEqual(beijingDate(1739923200000), naive);
+  });
+
+  test('the fund\'s first NAV point is its inception date, 2025-02-19', () => {
+    const payload = `var apidata={Data_netWorthTrend:[{"x":1739923200000,"y":1.0}],Data_ACWorthTrend:[]};`;
+    assert.equal(parseNavHistory(payload)[0]!.date, '2025-02-19');
   });
 });
 

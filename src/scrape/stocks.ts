@@ -191,7 +191,13 @@ export interface DividendRecord {
   code: string;
   /** Ex-dividend date, ISO. */
   exDate: string;
-  /** Cash dividend per share, 元, pre-tax. */
+  /**
+   * Cash dividend per share, 元, pre-tax (含税, 每10股派息 / 10).
+   *
+   * The upstream PRETAX_BONUS_RMB field is expressed per 10 shares. Verified
+   * against known payouts: 中国海油 6.6612 -> 0.6661 元/股,
+   * 中国电信 1.812 -> 0.1812 元/股, 格力电器 20 -> 2.00 元/股.
+   */
   dpsPreTax: number;
 }
 
@@ -206,7 +212,8 @@ export async function fetchDividends(code: string): Promise<DividendRecord[]> {
     .map((r) => ({
       code,
       exDate: String(r['EX_DIVIDEND_DATE'] ?? '').slice(0, 10),
-      dpsPreTax: Number(r['PRETAX_BONUS_RMB'] ?? 0),
+      // Upstream reports 每10股派息; normalise to per-share.
+      dpsPreTax: Number(r['PRETAX_BONUS_RMB'] ?? 0) / 10,
     }))
     .filter((d) => d.exDate.length === 10 && d.dpsPreTax > 0);
 }

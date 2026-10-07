@@ -88,10 +88,20 @@ export function parseNavHistory(raw: string): NavPoint[] {
   const m = raw.match(/Data_netWorthTrend[\s:=]{0,4}?(\[.*?\])[;,]/);
   if (!m?.[1]) throw new Error('Data_netWorthTrend not found in pingzhongdata payload');
   const rows = JSON.parse(m[1]) as Array<{ x: number; y: number }>;
-  return rows.map((r) => ({
-    date: new Date(r.x).toISOString().slice(0, 10),
-    nav: r.y,
-  }));
+  return rows.map((r) => ({ date: beijingDate(r.x), nav: r.y }));
+}
+
+/**
+ * Epoch millis -> calendar date in Beijing time.
+ *
+ * The upstream stamps each point at local midnight, which is 16:00 UTC on the
+ * previous day. Calling toISOString() directly shifts every NAV date back one
+ * day; since NAV is then compared against stock prices on their true trading
+ * dates, that misalignment silently destroys every correlation in the backtest.
+ * This is the most load-bearing date conversion in the project.
+ */
+export function beijingDate(epochMs: number): string {
+  return new Date(epochMs + 8 * 3_600_000).toISOString().slice(0, 10);
 }
 
 /** Report IDs, used to pull the PDFs that back the tax and 打新 analysis. */
