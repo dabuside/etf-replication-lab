@@ -67,14 +67,14 @@
 
   <section class="card" aria-label="回测">
     <h2>⑥ 历史回测 <span class="tag t-disclosed">真实披露数据</span></h2>
-    <p class="note">按各报告期披露权重持有至下期披露，样本外。基金成立于 2025-02-19，此前无真实持仓。</p>
+    <p class="note">按各报告期披露权重持有至下期披露，样本外。基金成立于 2025-02-19，此前无真实持仓。<b>本节曲线只含股票价格路径，不含网上打新期望收益、股息税差、费用差异——那三项只存在于 ① 的前瞻模型里。</b></p>
     <div class="charts">
       <div>
-        <h3>累计收益曲线（归一）</h3>
+        <h3>累计收益曲线（归一，仅股票价格）</h3>
         <canvas id="chartCum" width="860" height="300"></canvas>
       </div>
       <div>
-        <h3>回撤曲线</h3>
+        <h3>回撤曲线（仅股票价格）</h3>
         <canvas id="chartDd" width="860" height="200"></canvas>
       </div>
     </div>

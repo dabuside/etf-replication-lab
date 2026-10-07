@@ -231,7 +231,23 @@ function renderVerdict(): void {
       <div class="cell"><div class="k">按当前本金折算</div><div class="v ${cls(yuan)}">${yuan >= 0 ? '+' : ''}${fmtYuan(yuan)}/年</div></div>
     </div>
     <div class="warnbox">“中性假设”指复制组合的股票收益与 ETF 持平，超额只来自税、打新、费用三项可观测差异。拟合误差不贡献收益，只贡献风险（跟踪误差 ${fmtPct(r.breakdown.trackingErrorPct)} ${tag('statistical')}），见 ⑥。</div>
+    ${reconcileBox(r)}
     <p class="verdict-sub">其中：税务优势 ${fmtSignedPct(r.breakdown.personalDividendTaxPct - r.breakdown.etfDividendTaxPct)} / 打新净优势 ${fmtSignedPct(r.breakdown.ipoEdgePct - LAB_DATA.etfIpoContributionPct)} / 费用净节省 ${fmtSignedPct(r.breakdown.feeSavingPct + r.breakdown.tradingCostPct)}。股票本身贡献 ${fmtSignedPct(0)}（中性假设）。</p>`;
+}
+
+/**
+ * The single most misunderstood pairing on this page: ① is a FORWARD structural
+ * edge (tax + IPO + fees, stocks assumed tied) while ⑥ is the BACKWARD realized
+ * stock-only path (no IPO, no tax, no fees in the curves). Both are true at
+ * once, so the page states their reconciliation in one breath, computed live
+ * from the current selection.
+ */
+function reconcileBox(r: ModelResult): string {
+  if (r.isBaseline) return '';
+  const bt = LAB_DATA.backtests[state.method];
+  if (!bt) return '';
+  const realizedGap = bt.totalReturnPct - LAB_DATA.fundTotalReturnPct;
+  return `<div class="warnbox">为什么⑥的曲线可能压在基线之下？⑥是<b>过去</b>股票价格的实际路径（${bt.label}过去 ${fmtSignedPct(realizedGap)}，且曲线里<u>不含</u>打新、税差、费用）；①的 ${fmtSignedPct(r.breakdown.totalEdgePct)} 是<b>未来</b>税 + 打新 + 费用的结构超额（假设股票打平，而⑥证明过去并没有打平）。两个数字一个管过去、一个管未来，只看一个会得出相反结论。</div>`;
 }
 
 /* ---------------- ② decomposition ---------------- */

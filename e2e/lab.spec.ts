@@ -138,6 +138,23 @@ test('comparison tables are fully populated', async ({ page }) => {
   expect(coverage).toMatch(/窗口/);
 });
 
+test('verdict reconciles forward edge with backward realized gap', async ({ page }) => {
+  await page.selectOption('#method', 'top10_equal');
+  await page.fill('#capital', '100000');
+  const verdict = await page.locator('#verdict').innerText();
+  // Forward edge is stated...
+  expect(verdict).toMatch(/年化超额/);
+  // ...and reconciled in one breath with the backward stock-only gap.
+  expect(verdict).toMatch(/过去/);
+  expect(verdict).toMatch(/未来/);
+  expect(verdict).toMatch(/不含.*打新|打新.*不含/);
+});
+
+test('backtest section states its curves exclude IPO, tax and fees', async ({ page }) => {
+  const text = await page.locator('#chartCum').evaluate((el) => el.parentElement?.parentElement?.parentElement?.innerText ?? '');
+  expect(text).toMatch(/仅股票价格/);
+});
+
 test('charts are drawn', async ({ page }) => {
   for (const id of ['#chartCum', '#chartDd']) {
     const box = await page.locator(id).boundingBox();
