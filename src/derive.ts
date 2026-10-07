@@ -4,7 +4,7 @@
  * labelled assumption. Nothing is a free-floating guess.
  */
 import type { DividendRecord } from './scrape/stocks.ts';
-import type { Holding, HoldingsSnapshot } from './types.ts';
+import type { Holding, HoldingsSnapshot, PriceSeries } from './types.ts';
 
 export interface DividendDerivation {
   /** Gross (pre-tax) dividend yield of the disclosed book, %. */
@@ -98,6 +98,60 @@ export function deriveDividends(args: {
     totalNames: holdings.length,
     notes,
   };
+}
+
+export interface BasketYield {
+  /** Trailing-window dividend yield of this specific basket, %. */
+  yieldPct: number;
+  /** Constituents that paid in the window. */
+  payingNames: number;
+  totalNames: number;
+}
+
+/**
+ * Dividend yield of one specific basket, not the whole book.
+ *
+ * A Top5 concentrated in 电信/海油/格力 yields ~4.9% while the full 142-name
+ * book yields ~3.5%, because the tail holds many low- or non-payers. Using the
+ * book average for every method would flatten a real 0.1pp/yr tax-edge spread
+ * to zero, which is exactly the "switching methods changes nothing" complaint.
+ * Each method therefore carries its own yield, computed from its own weights.
+ */
+export function basketYield(args: {
+  weights: Array<{ code: string; weightPct: number }>;
+  dividends: Record<string, DividendRecord[]>;
+  prices: Map<string, PriceSeries>;
+  startDate: string;
+  endDate: string;
+  /** Price date for the yield denominator, e.g. the window's last day. */
+  priceDate: string;
+}): BasketYield {
+  const { weights, dividends, prices, startDate, endDate, priceDate } = args;
+  let yieldPct = 0;
+  let paying = 0;
+
+  for (const w of weights) {
+    const dps = (dividends[w.code] ?? [])
+      .filter((d) => d.exDate >= startDate && d.exDate <= endDate)
+      .reduce((s, d) => s + d.dpsPreTax, 0);
+    const p = priceOnOrBefore(prices.get(w.code), priceDate);
+    const stockYield = p && p > 0 ? (dps / p) * 100 : 0;
+    if (stockYield > 0) paying++;
+    yieldPct += (w.weightPct / 100) * stockYield;
+  }
+
+  return { yieldPct, payingNames: paying, totalNames: weights.length };
+}
+
+/** Last available close on or before a date, for yield denominators. */
+export function priceOnOrBefore(series: PriceSeries | undefined, date: string): number | null {
+  if (!series) return null;
+  let best: number | null = null;
+  for (let i = 0; i < series.dates.length; i++) {
+    if ((series.dates[i] as string) <= date) best = series.closes[i] as number;
+    else break;
+  }
+  return best;
 }
 
 export interface FeeDerivation {

@@ -34,6 +34,13 @@ export interface Dataset {
     notes: string[];
   };
 
+  /**
+   * Trailing dividend yield per replication method, keyed by method.
+   * A concentrated Top5 (~4.9%) genuinely yields more than the 142-name book
+   * (~3.5%); sharing one book average would flatten that real spread to zero.
+   */
+  yieldsByMethod: Record<string, number>;
+
   fees: {
     managementFeePct: number;
     custodyFeePct: number;

@@ -47,6 +47,12 @@ function dataset(): Dataset {
     fundAnnualisedReturnPct: 9.71,
     trackingErrorPct: 9.76,
     betaGapProxy: 0.38,
+    yieldsByMethod: {
+      top5_weighted: 4.87,
+      top10_weighted: 4.29,
+      top10_equal: 4.08,
+      full: 3.47,
+    },
     meta: { generatedAt: '2026-10-08', asOf: '2026-06-30', sources: [] },
   } as unknown as Dataset;
 }
@@ -168,6 +174,23 @@ describe('compute: the two-inputs-only contract', () => {
     const noTax = compute(ds, 1_000_000, 'top10_weighted', { etfTaxRateOverride: 0 });
     assert.equal(noTax.breakdown.etfDividendTaxPct, 0);
     assert.ok(base.breakdown.etfDividendTaxPct < 0);
+  });
+
+  test('each method uses its own dividend yield, so switching methods moves the tax edge', () => {
+    const top5 = compute(ds, 1_000_000, 'top5_weighted');
+    const full = compute(ds, 1_000_000, 'full');
+    assert.equal(top5.basketDividendYieldPct, 4.87);
+    assert.equal(full.basketDividendYieldPct, 3.47);
+    const taxTop5 = top5.breakdown.personalDividendTaxPct - top5.breakdown.etfDividendTaxPct;
+    const taxFull = full.breakdown.personalDividendTaxPct - full.breakdown.etfDividendTaxPct;
+    assert.ok(taxTop5 > taxFull, `top5 tax edge ${taxTop5} should exceed full ${taxFull}`);
+  });
+
+  test('a dataset without per-method yields falls back to the book average', () => {
+    const ds2 = dataset();
+    ds2.yieldsByMethod = {};
+    const r = compute(ds2, 1_000_000, 'top5_weighted');
+    assert.equal(r.basketDividendYieldPct, ds2.dividend.portfolioDividendYieldPct);
   });
 
   test('zero premium means zero profit, not NaN', () => {

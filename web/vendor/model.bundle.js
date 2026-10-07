@@ -436,7 +436,9 @@ function compute(dataset, capital, method, knobs) {
         knobs: k,
     });
     const etfTaxRate = k.etfTaxRateOverride ?? dataset.tax.etfEffectiveRate;
-    const basketYield = dataset.dividend.portfolioDividendYieldPct;
+    // Each method carries its own trailing yield (Top5 ~4.9% vs full book ~3.5%).
+    // Older datasets without the map fall back to the book average.
+    const basketYield = (dataset.yieldsByMethod ?? {})[method] ?? dataset.dividend.portfolioDividendYieldPct;
     // Stock returns are assumed equal on both sides (中性假设): a Top-N basket
     // neither systematically beats nor lags the fund's gross stock return. The
     // backtest panel shows what actually happened; the forward model does not

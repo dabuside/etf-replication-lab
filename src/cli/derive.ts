@@ -11,7 +11,7 @@ import { join } from 'node:path';
 
 import { backtestMethod, computeStats, type MethodBacktest } from '../backtest.ts';
 import { ALL_METHODS, METHOD_LABELS, buildPortfolio, namesToReachWeight } from '../domain/portfolio.ts';
-import { daysBetween, deriveDividends, deriveFees, deriveIpoContribution, median, pickRichestSnapshot } from '../derive.ts';
+import { basketYield, daysBetween, deriveDividends, deriveFees, deriveIpoContribution, median, pickRichestSnapshot } from '../derive.ts';
 import { ipoSample } from '../model.ts';
 import type { DividendRecord } from '../scrape/stocks.ts';
 import type { HoldingsSnapshot, IpoRecord, NavPoint, PriceSeries } from '../types.ts';
@@ -118,6 +118,23 @@ async function main(): Promise<void> {
     );
   }
 
+  console.log('\n== per-method dividend yields (2025 ex-dates on 2025Q4 book) ==');
+  const yieldsByMethod: Record<string, number> = {};
+  for (const m of ALL_METHODS) {
+    if (m === 'buy_etf') continue;
+    const weights = buildPortfolio(snapshot.holdings, m).weights;
+    const y = basketYield({
+      weights,
+      dividends,
+      prices,
+      startDate: '2025-01-01',
+      endDate: '2025-12-31',
+      priceDate: '2025-12-31',
+    });
+    yieldsByMethod[m] = y.yieldPct;
+    console.log(`  ${METHOD_LABELS[m].padEnd(24)} ${pct(y.yieldPct)}  (${y.payingNames}/${y.totalNames} names pay)`);
+  }
+
   const teTop10 = backtests.top10_weighted?.trackingErrorPct ?? 5;
   const betaGapProxy = clamp((100 - (backtests.top10_weighted?.activeSharePct ?? 25)) / 200, 0.05, 0.5);
 
@@ -147,6 +164,7 @@ async function main(): Promise<void> {
       portfolioDividendYieldPct: div.bookYieldPct,
       notes: div.notes,
     },
+    yieldsByMethod,
     fees: { managementFeePct: fees.managementFeePct, custodyFeePct: fees.custodyFeePct, totalPct: fees.totalPct, impliedAvgNavYuan2025: fees.impliedAvgNavYuan },
     etfIpoContributionPct: ipoContrib.estimatedReturnPct,
     etfIpo: {

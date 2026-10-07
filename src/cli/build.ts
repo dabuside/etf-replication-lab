@@ -57,6 +57,7 @@ function trimDataset(d: Record<string, unknown>): Record<string, unknown> {
     backtests: slim,
     tax: d['tax'],
     dividend: d['dividend'],
+    yieldsByMethod: d['yieldsByMethod'],
     fees: d['fees'],
     etfIpo: d['etfIpo'],
     etfIpoContributionPct: d['etfIpoContributionPct'],
@@ -109,4 +110,7 @@ async function main(): Promise<void> {
   console.log(`wrote dist/index.html (${(out.length / 1024).toFixed(0)} KB; app ${(appJs.length / 1024).toFixed(0)} KB, data ${(payload.length / 1024).toFixed(0)} KB)`);
 }
 
-await main();
+export { trimDataset };
+
+const invokedDirectly = process.argv[1] === fileURLToPath(import.meta.url);
+if (invokedDirectly) await main();

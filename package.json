@@ -10,6 +10,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --test \"test/*.test.ts\"",
+    "test:e2e": "playwright test",
     "test:watch": "node --test --watch \"test/*.test.ts\"",
     "scrape": "node src/scrape/cli.ts",
     "derive": "node src/cli/derive.ts",
@@ -17,12 +18,13 @@
     "build": "npm run build:model && node src/cli/build.ts",
     "smoke": "node scripts/smoke.ts",
     "dev": "npm run build && vite preview --open --port 4173",
-    "verify": "npm run typecheck && npm run test && npm run build && npm run smoke"
+    "verify": "npm run typecheck && npm run test && npm run build && npm run smoke && npm run test:e2e"
   },
   "dependencies": {
     "pdfjs-dist": "4.10.38"
   },
   "devDependencies": {
+    "@playwright/test": "1.55.0",
     "@types/node": "24.10.1",
     "typescript": "5.9.3",
     "vite": "8.3.3"
