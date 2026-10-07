@@ -160,6 +160,8 @@ export interface IpoExpectation {
 export interface ModelResult {
   capital: number;
   method: ReplicationMethod;
+  /** True for buy_etf: the baseline itself, whose edge is identically zero. */
+  isBaseline: boolean;
   portfolio: ReplicationWeights;
   ipo: IpoExpectation;
   tax: TaxModel;

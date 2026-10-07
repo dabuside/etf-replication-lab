@@ -60,6 +60,29 @@ const METHODS: ReplicationMethod[] = [
 describe('compute: the two-inputs-only contract', () => {
   const ds = dataset();
 
+  test('buy_etf is the baseline: edge identically zero, no online quota', () => {
+    const r = compute(ds, 1_000_000, 'buy_etf');
+    assert.equal(r.isBaseline, true);
+    assert.equal(r.breakdown.totalEdgePct, 0);
+    assert.equal(r.ipo.shTickets, 0);
+    assert.equal(r.ipo.szTickets, 0);
+    // The holder's 打新 return is the fund's own offline contribution inside NAV.
+    assert.equal(r.breakdown.ipoEdgePct, ds.etfIpoContributionPct);
+    assert.equal(r.ipo.expectedReturnPct, ds.etfIpoContributionPct);
+    // Decomposition identity still holds: (0-0) + (x-x) + (0+0) = 0.
+    const b = r.breakdown;
+    assert.equal(
+      (b.personalDividendTaxPct - b.etfDividendTaxPct) +
+      (b.ipoEdgePct - ds.etfIpoContributionPct) +
+      (b.feeSavingPct + b.tradingCostPct),
+      0,
+    );
+  });
+
+  test('replication methods are not the baseline', () => {
+    assert.equal(compute(ds, 1_000_000, 'top10_weighted').isBaseline, false);
+  });
+
   test('the UI calls compute with capital and method only; knobs default to neutral', () => {
     // The fourth parameter exists for the sensitivity panel but is optional:
     // omitting it must be identical to passing neutral knobs.

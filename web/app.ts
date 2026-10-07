@@ -55,6 +55,16 @@ interface LabBacktest {
   activeSharePct: number;
   observations: number;
   windows: number;
+  fullWindows: number;
+  attribution: Array<{
+    period: string;
+    names: number;
+    start: string;
+    end: string;
+    basketReturnPct: number;
+    fundReturnPct: number;
+    tradingDays: number;
+  }>;
   curve: LabCurvePoint[];
   fundCurve: LabCurvePoint[];
   notes: string[];
@@ -109,6 +119,7 @@ interface ResultWeight {
 interface ModelResult {
   capital: number;
   method: string;
+  isBaseline: boolean;
   portfolio: {
     method: string;
     label: string;
@@ -199,6 +210,14 @@ function result(knobs?: { winRateMultiplier?: number; premiumMultiplier?: number
 
 function renderVerdict(): void {
   const r = result();
+  if (r.isBaseline) {
+    $('verdict').innerHTML = `
+      <div class="kv">
+        <div class="cell"><div class="k">直接买 159201（基准本身） ${tag('disclosed')}</div><div class="v">${fmtPct(LAB_DATA.fundAnnualisedReturnPct)}</div></div>
+        <div class="cell"><div class="k">年化超额</div><div class="verdict-big">+0.00%</div></div></div>
+      <p class="verdict-sub">你选择的是基准对照组：持有 ETF 份额，无个股持仓、无网上配号、不省管理费。超额按定义恒为 0。切到 Top10 / Top20 / Top30 才会计算复制策略的超额。</p>`;
+    return;
+  }
   const edge = r.breakdown.totalEdgePct;
   const yuan = (edge / 100) * state.capital;
   const fundAnn = LAB_DATA.fundAnnualisedReturnPct;
@@ -233,16 +252,21 @@ function renderDecomp(): void {
       ${row('减：个人交易成本（佣金/印花/冲击）', b.tradingCostPct, '万2.5 + 减半印花 ' + tag('assumption'))}
       <tr class="total"><td>合计超额</td><td class="${cls(b.totalEdgePct)}">${fmtSignedPct(b.totalEdgePct)}</td><td></td></tr>
     </table>
-    <p class="note">跟踪误差 ${fmtPct(b.trackingErrorPct)} 是风险不是收益，未计入合计。个股收益按中性假设计入 0。</p>`;
+    <p class="note">跟踪误差 ${fmtPct(b.trackingErrorPct)} 是风险不是收益，未计入合计。个股收益按中性假设计入 0。${r.isBaseline ? '基准对照组：各项差异恒为 0。' : ''}</p>`;
 }
 
 /* ---------------- ③ portfolio ---------------- */
 
 function renderPortfolio(): void {
   const r = result();
+  const amountCell = (w: ResultWeight): string =>
+    r.isBaseline ? '—' : fmtYuan((state.capital * w.weightPct) / 100);
   const rows = r.portfolio.weights
-    .map((w, i) => `<tr><td>${i + 1}</td><td>${w.code}</td><td>${w.name}</td><td>${w.exchange}</td><td>${fmtPct(w.weightPct)}</td><td>${fmtYuan((state.capital * w.weightPct) / 100)}</td></tr>`)
+    .map((w, i) => `<tr><td>${i + 1}</td><td>${w.code}</td><td>${w.name}</td><td>${w.exchange}</td><td>${fmtPct(w.weightPct)}</td><td>${amountCell(w)}</td></tr>`)
     .join('');
+  const intro = r.isBaseline
+    ? `ETF 完整持仓（${LAB_DATA.snapshot.period}，${LAB_DATA.snapshot.asOf}）。注意：你持有的是 ETF 份额，不是这些股票，因此没有对应的个股金额，也没有打新市值。</p>`
+    : `${r.portfolio.label} · 基于 ${LAB_DATA.snapshot.period}（${LAB_DATA.snapshot.asOf}）披露持仓。沪深市值直接决定 ④ 的配号数。</p>`;
   $('portfolio').innerHTML = `
     <div class="kv">
       <div class="cell"><div class="k">持仓只数</div><div class="v">${r.portfolio.weights.length}</div></div>
@@ -250,7 +274,7 @@ function renderPortfolio(): void {
       <div class="cell"><div class="k">沪市市值</div><div class="v">${fmtYuan(r.ipo.shMarketValue)}</div></div>
       <div class="cell"><div class="k">深市市值</div><div class="v">${fmtYuan(r.ipo.szMarketValue)}</div></div>
     </div>
-    <p class="note">${r.portfolio.label} · 基于 ${LAB_DATA.snapshot.period}（${LAB_DATA.snapshot.asOf}）披露持仓。沪深市值直接决定 ④ 的配号数。</p>
+    <p class="note">${intro}
     <div class="holdings"><table class="data">
       <tr><th>#</th><th>代码</th><th>名称</th><th>市场</th><th>组合权重</th><th>对应金额</th></tr>
       ${rows}
@@ -280,7 +304,9 @@ function renderTax(): void {
   const r = result();
   const y = r.basketDividendYieldPct;
   const etfRate = r.tax.etfEffectiveRate;
-  const etfTaxYuan = (state.capital * (y / 100) * (etfRate / 100));
+  // Baseline holder pays the fund's internal tax exactly like the fund does:
+  // the difference-vs-self is zero, even though the level is not.
+  const etfTaxYuan = r.isBaseline ? 0 : state.capital * (y / 100) * (etfRate / 100);
   $('tax').innerHTML = `
     <div class="chain">
       <div class="link"><b>上市公司 → 基金</b><br>按基金自身持股期限差别征税（财税[2012]85 号第五条）：≤1 月 20%，1 月–1 年 10%，超 1 年 0%。季度调仓的 ETF 多数仓位落在 10% 档。回推 159201 有效税率 <b>${fmtPct(etfRate)}</b> ${tag('statistical')}</div>
@@ -387,6 +413,15 @@ function drawLineChart(canvasId: string, series: Array<{ label: string; color: s
   }
 }
 
+/** Names a method needs for its label to be literally true. */
+function namesNeeded(method: string): number {
+  if (method === 'top5_weighted') return 5;
+  if (method === 'top20_weighted' || method === 'top20_normalized') return 20;
+  if (method === 'top30_weighted' || method === 'top30_normalized') return 30;
+  if (method === 'full') return Number.POSITIVE_INFINITY;
+  return 10;
+}
+
 function renderBacktest(): void {
   const methods = Object.keys(LAB_DATA.backtests);
   const sel = LAB_DATA.backtests[state.method] ?? LAB_DATA.backtests['top10_weighted'];
@@ -395,31 +430,61 @@ function renderBacktest(): void {
       const b = LAB_DATA.backtests[k];
       if (!b) return '';
       const mark = k === state.method ? ' ★' : '';
-      return `<tr><td>${b.label}${mark}</td><td class="${cls(b.totalReturnPct)}">${fmtSignedPct(b.totalReturnPct)}</td><td>${fmtPct(b.trackingErrorPct)}</td><td>${fmtNum(b.beta)}</td><td>${fmtNum(b.correlation, 3)}</td><td>${fmtPct(b.activeSharePct, 1)}</td><td class="${cls(b.maxDrawdownPct)}">${fmtPct(b.maxDrawdownPct)}</td><td>${b.observations}</td></tr>`;
+      const need = namesNeeded(k);
+      const satisfied = b.attribution.filter((w) => w.names >= need).length;
+      const coverage = need === Number.POSITIVE_INFINITY
+        ? `${b.fullWindows}/${b.windows} 窗口全披露`
+        : `${satisfied}/${b.windows} 窗口满足所需只数`;
+      return `<tr><td>${b.label}${mark}</td><td class="${cls(b.totalReturnPct)}">${fmtSignedPct(b.totalReturnPct)}</td><td>${fmtPct(b.trackingErrorPct)}</td><td>${fmtNum(b.beta)}</td><td>${fmtNum(b.correlation, 3)}</td><td>${fmtPct(b.activeSharePct, 1)}</td><td class="${cls(b.maxDrawdownPct)}">${fmtPct(b.maxDrawdownPct)}</td><td>${coverage}</td><td>${b.observations}</td></tr>`;
     })
     .join('');
 
+  const full = LAB_DATA.backtests['full'];
+  const gap = (p: string): string => {
+    const w = full?.attribution.find((x) => x.period === p);
+    return w ? fmtSignedPct(w.basketReturnPct - w.fundReturnPct) : '—';
+  };
+  const pair = (p: string): string => {
+    const w = full?.attribution.find((x) => x.period === p);
+    return w ? `篮子 ${fmtPct(w.basketReturnPct)} vs 基金 ${fmtPct(w.fundReturnPct)}` : '';
+  };
+
   $('backtestTable').innerHTML = `
+    <div class="warnbox">“完整成分股拟合”只在 1 个窗口里是真的完整（2025Q4 年报披露 142 只）。其余 5 个窗口季报只披露前 10 名，那里的“Top20 / Top30 / 完整拟合”实际都只能按 10 只构建——缺口主要不在方法，而在披露。<br>
+    验证：唯一全披露窗口（2025Q4 持仓持有至 2026Q1）全复制只差 ${gap('2025Q4')}（${pair('2025Q4')}），差值正是费率 + 股息税 + 跟踪误差的量级，方法本身是对的。<br>
+    总缺口几乎全部来自 2025Q2（差 ${gap('2025Q2')}）与 Q3（差 ${gap('2025Q3')}）：当时基金 +12.17% / +7.54%，而 2025H2 是有色（铝）牛市——云铝 +112%、中国铝业 +82%、神火 +68%、盐湖 +65%，涨幅前列全在第 11~100 名，前十篮子天然踏空。 ${tag('statistical')}</div>
     <table class="data">
-      <tr><th>方法</th><th>区间回报</th><th>跟踪误差</th><th>Beta</th><th>相关系数</th><th>Active Share</th><th>最大回撤</th><th>交易日</th></tr>
-      <tr><td>159201（基金净值）</td><td class="${cls(LAB_DATA.fundTotalReturnPct)}">${fmtSignedPct(LAB_DATA.fundTotalReturnPct)}</td><td>—</td><td>1.00</td><td>1.000</td><td>—</td><td class="${cls(LAB_DATA.fundMaxDrawdownPct)}">${fmtPct(LAB_DATA.fundMaxDrawdownPct)}</td><td>—</td></tr>
+      <tr><th>方法</th><th>区间回报</th><th>跟踪误差</th><th>Beta</th><th>相关系数</th><th>Active Share*</th><th>最大回撤</th><th>披露覆盖</th><th>交易日</th></tr>
+      <tr><td>159201（基金净值）</td><td class="${cls(LAB_DATA.fundTotalReturnPct)}">${fmtSignedPct(LAB_DATA.fundTotalReturnPct)}</td><td>—</td><td>1.00</td><td>1.000</td><td>—</td><td class="${cls(LAB_DATA.fundMaxDrawdownPct)}">${fmtPct(LAB_DATA.fundMaxDrawdownPct)}</td><td>—</td><td>—</td></tr>
       ${rows}
     </table>
-    <p class="note">★ 为当前选择的拟合方式。哪个是“甜点”看两列：跟踪误差随只数下降（Top5 14.2% → Top30 8.7%），但区间回报差异主要来自权重结构而非只数。</p>`;
+    <p class="note">★ 为当前选择的拟合方式。*Active Share 以最完整的 2025Q4（142 只）披露为基准，而非最新一期不完全披露。</p>
+    ${sel && sel.notes.length > 0 ? `<p class="note">回测备注：${sel.notes.join('；')}</p>` : ''}
+    ${sel ? `<h3>${sel.label}：逐窗口归因（篮子 vs 基金）</h3>
+    <table class="data">
+      <tr><th>窗口</th><th>实际用几只</th><th>篮子</th><th>基金</th><th>差</th><th>交易日</th></tr>
+      ${sel.attribution.map((w) => `<tr><td>${w.period}（${w.start.slice(0, 7)}→${w.end.slice(0, 7)}）</td><td>${w.names}</td><td class="${cls(w.basketReturnPct)}">${fmtSignedPct(w.basketReturnPct)}</td><td>${fmtSignedPct(w.fundReturnPct)}</td><td class="${cls(w.basketReturnPct - w.fundReturnPct)}">${fmtSignedPct(w.basketReturnPct - w.fundReturnPct)}</td><td>${w.tradingDays}</td></tr>`).join('')}
+    </table>` : ''}`;
 
   if (sel) {
-    drawLineChart('chartCum', [
-      { label: '159201', color: '#1b5bd7', points: sel.fundCurve },
-      { label: sel.label, color: '#c0392b', points: sel.curve },
-    ]);
-    drawLineChart(
-      'chartDd',
-      [
-        { label: '159201 回撤', color: '#1b5bd7', points: sel.fundCurve },
-        { label: `${sel.label} 回撤`, color: '#c0392b', points: sel.curve },
-      ],
-      { drawdown: true },
-    );
+    if (state.method === 'buy_etf') {
+      // Baseline has no basket: draw the fund against itself.
+      drawLineChart('chartCum', [{ label: '159201', color: '#1b5bd7', points: sel.fundCurve }]);
+      drawLineChart('chartDd', [{ label: '159201 回撤', color: '#1b5bd7', points: sel.fundCurve }], { drawdown: true });
+    } else {
+      drawLineChart('chartCum', [
+        { label: '159201', color: '#1b5bd7', points: sel.fundCurve },
+        { label: sel.label, color: '#c0392b', points: sel.curve },
+      ]);
+      drawLineChart(
+        'chartDd',
+        [
+          { label: '159201 回撤', color: '#1b5bd7', points: sel.fundCurve },
+          { label: `${sel.label} 回撤`, color: '#c0392b', points: sel.curve },
+        ],
+        { drawdown: true },
+      );
+    }
   }
 }
 
@@ -522,6 +587,7 @@ function renderMethodology(): void {
 }
 
 const ASSUME = [
+  '直接买 159201 为基准对照组：超额恒为 0，其打新收益即基金网下获配（已含在净值里），不产生网上配号、不省管理费。',
   '个人持有超 1 年，股息税为 0（财税[2015]101 号；政策延续有效，页面按现行规则计）。',
   'ETF 底层有效税率取回推值；回推不可观察时取法定区间 0%~20% 的中值（季度调仓→多数仓位落在 1 个月至 1 年档）。',
   '股票收益中性假设：复制组合与 ETF 的股票部分收益相同，超额只来自税、打新、费用。拟合误差体现为跟踪误差（风险），不计入收益。',
@@ -562,6 +628,7 @@ function boot(): void {
     methodSel.appendChild(opt);
   }
   methodSel.value = state.method;
+  $('methodHint').textContent = EtfLab.METHOD_LABELS[state.method] ?? '';
   methodSel.addEventListener('change', () => {
     state.method = methodSel.value;
     $('methodHint').textContent = EtfLab.METHOD_LABELS[state.method] ?? '';

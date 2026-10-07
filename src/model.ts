@@ -186,7 +186,53 @@ export function compute(
     ...ASSUMPTIONS,
     etfFeeCostPct: dataset.fees.totalPct,
   };
+
+  // Baseline: holding the ETF itself. There is no replicated basket, no online
+  // subscription quota (fund units do not count toward 打新 market value), no
+  // fee saving and no personal tax edge. The holder's 打新 return is exactly
+  // the fund's own offline-allotment contribution, which is already inside NAV,
+  // so every edge-vs-baseline term nets to zero by construction.
   const holdings = dataset.snapshot.holdings;
+  if (method === 'buy_etf') {
+    const portfolio = buildPortfolio(holdings, method);
+    const fundIpoPct = dataset.etfIpoContributionPct;
+    const basketYield = dataset.dividend.portfolioDividendYieldPct;
+    const breakdown = {
+      stockBetaContributionPct: dataset.fundAnnualisedReturnPct,
+      dividendYieldPct: basketYield,
+      personalDividendTaxPct: 0,
+      etfDividendTaxPct: 0,
+      ipoEdgePct: fundIpoPct,
+      feeSavingPct: 0,
+      tradingCostPct: 0,
+      trackingErrorPct: 0,
+      totalEdgePct: 0,
+    };
+    return {
+      capital,
+      method,
+      isBaseline: true,
+      portfolio,
+      ipo: {
+        shMarketValue: 0,
+        szMarketValue: 0,
+        shTickets: 0,
+        szTickets: 0,
+        expectedWinsPerYear: 0,
+        expectedProfitPerYear: capital > 0 ? (capital * fundIpoPct) / 100 : 0,
+        expectedReturnPct: fundIpoPct,
+        capBinds: false,
+        notes:
+          '直接持有 ETF 份额：基金份额不计入网上打新市值，无网上配号；打新收益仅为基金网下获配，已含在净值里',
+      },
+      tax: dataset.tax,
+      etfFeePct: assumptions.etfFeeCostPct,
+      tradingCostPct: 0,
+      basketDividendYieldPct: basketYield,
+      breakdown,
+    };
+  }
+
   const portfolio = buildPortfolio(holdings, method);
   const split = exchangeSplit(portfolio.weights);
 
@@ -235,6 +281,7 @@ export function compute(
   return {
     capital,
     method,
+    isBaseline: false,
     portfolio,
     ipo: {
       shMarketValue: ipo.shMarketValue,

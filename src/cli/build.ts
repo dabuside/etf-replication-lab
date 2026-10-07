@@ -44,6 +44,8 @@ function trimDataset(d: Record<string, unknown>): Record<string, unknown> {
       activeSharePct: v['activeSharePct'],
       observations: v['observations'],
       windows: v['windows'],
+      fullWindows: v['fullWindows'],
+      attribution: v['attribution'],
       notes: v['notes'],
       curve: thin(curve),
       fundCurve: thin(fundCurve),

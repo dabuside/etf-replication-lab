@@ -199,6 +199,17 @@ export function activeSharePct(
   return sum / 2;
 }
 
+export interface WindowAttribution {
+  period: string;
+  /** Constituent count actually used in this window. */
+  names: number;
+  start: string;
+  end: string;
+  basketReturnPct: number;
+  fundReturnPct: number;
+  tradingDays: number;
+}
+
 export interface MethodBacktest {
   label: string;
   totalReturnPct: number;
@@ -213,6 +224,10 @@ export interface MethodBacktest {
   activeSharePct: number;
   observations: number;
   windows: number;
+  /** Windows with more than 10 names, i.e. interim/annual full disclosure. */
+  fullWindows: number;
+  /** Per-window basket vs fund, so a gap can be localised instead of wondered at. */
+  attribution: WindowAttribution[];
   /** Cumulative basket index, for the chart. */
   curve: Array<{ date: string; value: number }>;
   /** Fund NAV curve on the same dates, normalised to 1. */
@@ -258,9 +273,11 @@ export function backtestMethod(args: {
 
   const curve: Array<{ date: string; value: number }> = [];
   const fundCurve: Array<{ date: string; value: number }> = [];
+  const attribution: WindowAttribution[] = [];
   const allBasket: ReturnSeries = { dates: [], rets: [] };
   const allFund: ReturnSeries = { dates: [], rets: [] };
   let windows = 0;
+  let fullWindows = 0;
   let lastValue = 1;
   let lastFundValue = 1;
 
@@ -293,6 +310,18 @@ export function backtestMethod(args: {
     const [ab, af] = alignReturns(toReturns(basketVals), toReturns(fundVals));
     if (ab.rets.length < 20) continue;
 
+    const bCum = ab.rets.reduce((v, r) => v * (1 + r), 1);
+    const fCum = af.rets.reduce((v, r) => v * (1 + r), 1);
+    attribution.push({
+      period: seg.period,
+      names: weights.length,
+      start: seg.start,
+      end: seg.end,
+      basketReturnPct: (bCum - 1) * 100,
+      fundReturnPct: (fCum - 1) * 100,
+      tradingDays: ab.rets.length,
+    });
+
     // Chain into the overall curve using the window's own compounding.
     let v = lastValue;
     for (let i = 0; i < ab.rets.length; i++) {
@@ -312,6 +341,7 @@ export function backtestMethod(args: {
     allFund.rets.push(...af.rets);
     allFund.dates.push(...af.dates);
     windows++;
+    if (seg.holdings.length > 10) fullWindows++;
   }
 
   const totalObs = allBasket.rets.length;
@@ -324,8 +354,14 @@ export function backtestMethod(args: {
   const [ab2, af2] = alignReturns(allBasket, allFund);
   const reg = regress(ab2, af2);
 
-  const snap = usable[usable.length - 1]!;
-  const built = build(snap.holdings) ?? [];
+  // Active share is measured against the most complete disclosure, not the
+  // latest partial one: scoring a full-book replication against a 10-name
+  // quarter-end list would report a large "active share" that is pure missing
+  // data, not portfolio choice.
+  const richest = [...usable].sort(
+    (a, b) => b.holdings.length - a.holdings.length || b.asOf.localeCompare(a.asOf),
+  )[0]!;
+  const builtRichest = build(richest.holdings) ?? [];
 
   return {
     label,
@@ -338,9 +374,11 @@ export function backtestMethod(args: {
     beta: reg.beta,
     alphaPct: reg.alphaPct,
     correlation: reg.correlation,
-    activeSharePct: activeSharePct(built, snap.holdings),
+    activeSharePct: activeSharePct(builtRichest, richest.holdings),
     observations: totalObs,
     windows,
+    fullWindows,
+    attribution,
     curve,
     fundCurve,
     notes: [...new Set(notes)],
