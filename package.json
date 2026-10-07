@@ -1,0 +1,28 @@
+{
+  "name": "etf-replication-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "159201 (华夏国证自由现金流ETF) vs. individual stock-replication lab",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/",
+    "test:watch": "node --test --watch test/",
+    "scrape": "node src/scrape/cli.ts",
+    "derive": "node src/cli/derive.ts",
+    "backtest": "node src/cli/backtest.ts",
+    "build": "node src/cli/build.ts",
+    "dev": "vite",
+    "verify": "npm run typecheck && npm run test && npm run build"
+  },
+  "dependencies": {
+    "pdfjs-dist": "4.10.38"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vite": "8.3.3"
+  }
+}

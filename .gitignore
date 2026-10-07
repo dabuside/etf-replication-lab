@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.log
+
+# Raw scraped payloads are reproducible from `npm run scrape`; they are large
+# and change on every upstream refresh. Derived data IS committed because the
+# published HTML depends on it.
+data/raw/
