@@ -1,23 +1,23 @@
 /**
  * Produces dist/index.html: a single self-contained page with no backend, no
- * CDN and no runtime fetch. The model bundle, the transpiled app and the
- * trimmed dataset are all inlined, so the file opens straight from disk.
+ * CDN and no runtime fetch. The model bundle, the transpiled modular frontend
+ * and the trimmed dataset are all inlined, so the file opens straight from disk.
  */
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { join, dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import ts from 'typescript';
+import { bundleClassicScript, syntaxCheckScript } from './transpile.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const OUT = join(ROOT, 'dist', 'index.html');
 
-function transpileApp(source: string): string {
-  const out = ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.None, target: ts.ScriptTarget.ES2020 },
-    fileName: 'app.ts',
-  });
-  return out.outputText;
-}
+/** Ordered frontend modules bundled into the single inline app script. */
+const WEB_SOURCES = [
+  'web/format.ts',
+  'web/charts.ts',
+  'web/panels.ts',
+  'web/app.ts',
+];
 
 /**
  * Drop fields the page never reads. Daily prices and full-date curves would
@@ -80,25 +80,20 @@ function thin(points: Array<{ date: string; value: number }>): Array<{ date: str
 }
 
 async function main(): Promise<void> {
-  const [html, css, appTs, modelJs] = await Promise.all([
+  const [html, css, modelJs, appJs] = await Promise.all([
     readFile(join(ROOT, 'web', 'index.html'), 'utf8'),
     readFile(join(ROOT, 'web', 'style.css'), 'utf8'),
-    readFile(join(ROOT, 'web', 'app.ts'), 'utf8'),
     readFile(join(ROOT, 'web', 'vendor', 'model.bundle.js'), 'utf8'),
+    bundleClassicScript(ROOT, WEB_SOURCES, { wrapIife: true }),
   ]);
-  const dataset = JSON.parse(await readFile(join(ROOT, 'data', 'derived', 'dataset.json'), 'utf8')) as Record<string, unknown>;
+
+  const dataset = JSON.parse(
+    await readFile(join(ROOT, 'data', 'derived', 'dataset.json'), 'utf8'),
+  ) as Record<string, unknown>;
   const payload = JSON.stringify(trimDataset(dataset)).replace(/</g, '\\u003c');
 
-  const appJs = transpileApp(appTs);
-
-  // Syntax-check the transpiled app before inlining it.
-  const { execFile } = await import('node:child_process');
-  const tmp = join(ROOT, 'dist', '.app.check.mjs');
-  await mkdir(join(ROOT, 'dist'), { recursive: true });
-  await writeFile(tmp, appJs, 'utf8');
-  await new Promise<void>((resolve, reject) => {
-    execFile(process.execPath, ['--check', tmp], (err) => (err ? reject(err) : resolve()));
-  });
+  // Syntax-check the bundled app in OS temp dir so dist/ stays completely clean.
+  await syntaxCheckScript(appJs, 'app');
 
   const out = html
     .replace('/*__CSS__*/', css)
@@ -106,8 +101,11 @@ async function main(): Promise<void> {
     .replace('/*__DATA__*/', payload)
     .replace('/*__APP__*/', appJs);
 
+  await mkdir(join(ROOT, 'dist'), { recursive: true });
   await writeFile(OUT, out, 'utf8');
-  console.log(`wrote dist/index.html (${(out.length / 1024).toFixed(0)} KB; app ${(appJs.length / 1024).toFixed(0)} KB, data ${(payload.length / 1024).toFixed(0)} KB)`);
+  console.log(
+    `wrote dist/index.html (${(out.length / 1024).toFixed(0)} KB; app ${(appJs.length / 1024).toFixed(0)} KB, data ${(payload.length / 1024).toFixed(0)} KB)`,
+  );
 }
 
 export { trimDataset };

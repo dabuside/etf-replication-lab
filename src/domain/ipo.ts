@@ -45,31 +45,13 @@ export function ticketsFromMarketValue(marketValue: number, exchange: 'SH' | 'SZ
   return Math.floor(marketValue / unit);
 }
 
-/** Per-investor ticket count after applying the IPO's online subscription cap. */
-export function expectedWins(
-  tickets: number,
-  ipo: IpoRecord,
-  exchange: 'SH' | 'SZ' | 'BJ',
-): number {
-  // Beijing Stock Exchange has a separate regime and is excluded from this model.
-  if (exchange === 'BJ') return 0;
-  if (!ipo.listingDate) return 0;
-
-  const perTicket = ipo.sharesPerTicket ?? (exchange === 'SH' ? 1000 : 500);
-  const cap = ipo.onlineApplyUpper;
-  const cappedTickets = cap ? Math.min(tickets, Math.floor(cap / perTicket)) : tickets;
-
-  const p = winningRate(ipo);
-  if (p === null) return 0;
-  return cappedTickets * p;
-}
-
-/** Detailed variant used by the model, which needs to know when the cap binds. */
+/** Detailed expected-win calculation, including whether the online cap binds. */
 export function expectedWinsDetailed(
   tickets: number,
   ipo: IpoRecord,
   exchange: 'SH' | 'SZ' | 'BJ',
 ): { wins: number; cappedTickets: number; capBinds: boolean } {
+  // Beijing Stock Exchange has a separate regime and is excluded from this model.
   if (exchange === 'BJ' || !ipo.listingDate) {
     return { wins: 0, cappedTickets: 0, capBinds: false };
   }
@@ -83,6 +65,15 @@ export function expectedWinsDetailed(
     cappedTickets,
     capBinds: cappedTickets < tickets,
   };
+}
+
+/** Per-investor expected wins after applying the IPO's online subscription cap. */
+export function expectedWins(
+  tickets: number,
+  ipo: IpoRecord,
+  exchange: 'SH' | 'SZ' | 'BJ',
+): number {
+  return expectedWinsDetailed(tickets, ipo, exchange).wins;
 }
 
 /** What one winning ticket is worth, using the first-day open premium. */

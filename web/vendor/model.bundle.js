@@ -125,23 +125,9 @@ function ticketsFromMarketValue(marketValue, exchange) {
     // The rules explicitly discard the remainder below the threshold.
     return Math.floor(marketValue / unit);
 }
-/** Per-investor ticket count after applying the IPO's online subscription cap. */
-function expectedWins(tickets, ipo, exchange) {
-    // Beijing Stock Exchange has a separate regime and is excluded from this model.
-    if (exchange === 'BJ')
-        return 0;
-    if (!ipo.listingDate)
-        return 0;
-    const perTicket = ipo.sharesPerTicket ?? (exchange === 'SH' ? 1000 : 500);
-    const cap = ipo.onlineApplyUpper;
-    const cappedTickets = cap ? Math.min(tickets, Math.floor(cap / perTicket)) : tickets;
-    const p = winningRate(ipo);
-    if (p === null)
-        return 0;
-    return cappedTickets * p;
-}
-/** Detailed variant used by the model, which needs to know when the cap binds. */
+/** Detailed expected-win calculation, including whether the online cap binds. */
 function expectedWinsDetailed(tickets, ipo, exchange) {
+    // Beijing Stock Exchange has a separate regime and is excluded from this model.
     if (exchange === 'BJ' || !ipo.listingDate) {
         return { wins: 0, cappedTickets: 0, capBinds: false };
     }
@@ -155,6 +141,10 @@ function expectedWinsDetailed(tickets, ipo, exchange) {
         cappedTickets,
         capBinds: cappedTickets < tickets,
     };
+}
+/** Per-investor expected wins after applying the IPO's online subscription cap. */
+function expectedWins(tickets, ipo, exchange) {
+    return expectedWinsDetailed(tickets, ipo, exchange).wins;
 }
 /** What one winning ticket is worth, using the first-day open premium. */
 function profitPerWin(ipo) {
@@ -196,6 +186,14 @@ const METHOD_SPEC = {
     full: { count: Number.POSITIVE_INFINITY, mode: 'weighted' },
 };
 const ALL_METHODS = Object.keys(METHOD_SPEC);
+/**
+ * Number of disclosed constituents a method needs for its label to be
+ * literally satisfied (Infinity for full replication, 0 for buy_etf).
+ */
+function methodRequiredCount(method) {
+    const spec = METHOD_SPEC[method];
+    return spec ? spec.count : 0;
+}
 /**
  * Build a replicated basket from a disclosed holdings snapshot.
  *
@@ -491,4 +489,4 @@ function compute(dataset, capital, method, knobs) {
     };
 }
 
-globalThis.EtfLab = { compute, computeIpo, tradingCostPct, ipoSample, buildPortfolio, exchangeSplit, namesToReachWeight, ticketsFromMarketValue, expectedWins, expectedWinsDetailed, profitPerWin, expectedProfit, winningRate, effectiveDividendTaxRate, personalLongTermRate, impliedTaxRate, METHOD_LABELS, ALL_METHODS, MARKET_VALUE_PER_TICKET, TAX_BANDS, ETF_TAX_BOUNDS, ASSUMPTIONS };
+globalThis.EtfLab = { compute, computeIpo, tradingCostPct, ipoSample, buildPortfolio, exchangeSplit, methodRequiredCount, namesToReachWeight, ticketsFromMarketValue, expectedWins, expectedWinsDetailed, profitPerWin, expectedProfit, winningRate, effectiveDividendTaxRate, personalLongTermRate, impliedTaxRate, METHOD_LABELS, ALL_METHODS, MARKET_VALUE_PER_TICKET, TAX_BANDS, ETF_TAX_BOUNDS, ASSUMPTIONS };
