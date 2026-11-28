@@ -12,7 +12,11 @@
  * on *dates*, not on array position. Constituents list on different calendars,
  * so any day a name is unpriced has to drop out of both series together.
  */
+import { pickRichestSnapshot } from './derive.ts';
 import type { Holding, HoldingsSnapshot, NavPoint, PriceSeries } from './types.ts';
+
+/** Standard A-share trading days per calendar year. */
+export const TRADING_DAYS_PER_YEAR = 244;
 
 export interface AlignedSeries {
   dates: string[];
@@ -109,7 +113,7 @@ export function computeStats(values: number[], rfAnnualPct = 1.5): SeriesStats |
   if (first <= 0 || last <= 0) return null;
 
   const totalReturnPct = (last / first - 1) * 100;
-  const years = values.length / 244;
+  const years = values.length / TRADING_DAYS_PER_YEAR;
   const annualisedReturnPct =
     years > 0.05 ? (Math.pow(last / first, 1 / years) - 1) * 100 : totalReturnPct;
 
@@ -118,7 +122,7 @@ export function computeStats(values: number[], rfAnnualPct = 1.5): SeriesStats |
   const n = rets.length || 1;
   const mean = rets.reduce((s, r) => s + r, 0) / n;
   const variance = rets.reduce((s, r) => s + (r - mean) ** 2, 0) / Math.max(1, n - 1);
-  const volatilityPct = Math.sqrt(variance) * Math.sqrt(244) * 100;
+  const volatilityPct = Math.sqrt(variance) * Math.sqrt(TRADING_DAYS_PER_YEAR) * 100;
   const sharpe = volatilityPct > 0 ? (annualisedReturnPct - rfAnnualPct) / volatilityPct : 0;
 
   let peak = first;
@@ -179,8 +183,11 @@ export function regress(basket: ReturnSeries, fund: ReturnSeries): Regression {
 
   const active = x.map((_, i) => (y[i] as number) - (x[i] as number));
   const mActive = active.reduce((s, r) => s + r, 0) / n;
-  const te = Math.sqrt(active.reduce((s, r) => s + (r - mActive) ** 2, 0) / Math.max(1, n - 1)) * Math.sqrt(244) * 100;
-  const alphaPct = (my - beta * mx) * 244 * 100;
+  const te =
+    Math.sqrt(active.reduce((s, r) => s + (r - mActive) ** 2, 0) / Math.max(1, n - 1)) *
+    Math.sqrt(TRADING_DAYS_PER_YEAR) *
+    100;
+  const alphaPct = (my - beta * mx) * TRADING_DAYS_PER_YEAR * 100;
 
   return { beta, alphaPct, correlation, trackingErrorPct: te };
 }
@@ -259,7 +266,14 @@ export function backtestMethod(args: {
   const navDates = nav.map((n) => n.date);
   const firstNavDate = navDates[0] ?? '';
   const lastNavDate = navDates[navDates.length - 1] ?? '';
-  const fund = navSeries(nav);
+  const navMap = new Map(nav.map((n) => [n.date, n.nav]));
+  const priceMapCache = new Map<string, Map<string, number> | null>();
+  const getPriceMap = (code: string): Map<string, number> | null => {
+    if (!priceMapCache.has(code)) {
+      priceMapCache.set(code, priceMap(prices.get(code)));
+    }
+    return priceMapCache.get(code) ?? null;
+  };
 
   // Hold each disclosure's weights until the next disclosure.
   const segments: Array<{ holdings: Holding[]; start: string; end: string; period: string }> = [];
@@ -291,13 +305,12 @@ export function backtestMethod(args: {
       notes.push(`${seg.period} 期仅披露 ${seg.holdings.length} 只，该窗口实际按 ${weights.length} 只计算`);
     }
 
-    const maps = weights.map((w) => priceMap(prices.get(w.code)));
+    const maps = weights.map((w) => getPriceMap(w.code));
     const basketVals = portfolioValueSeries(maps, weights.map((w) => w.weightPct), dates);
 
     // The fund series must be indexed by the *same* dates the basket produced.
     // Building it from the window's own date list instead silently pairs each
     // return with the wrong NAV, which drives correlation toward zero.
-    const navMap = new Map(nav.map((n) => [n.date, n.nav]));
     const fundVals: AlignedSeries = { dates: [], values: [] };
     for (const d of basketVals.dates) {
       const v = navMap.get(d);
@@ -358,9 +371,7 @@ export function backtestMethod(args: {
   // latest partial one: scoring a full-book replication against a 10-name
   // quarter-end list would report a large "active share" that is pure missing
   // data, not portfolio choice.
-  const richest = [...usable].sort(
-    (a, b) => b.holdings.length - a.holdings.length || b.asOf.localeCompare(a.asOf),
-  )[0]!;
+  const richest = pickRichestSnapshot(usable);
   const builtRichest = build(richest.holdings) ?? [];
 
   return {

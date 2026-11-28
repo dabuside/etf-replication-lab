@@ -143,15 +143,25 @@ export function basketYield(args: {
   return { yieldPct, payingNames: paying, totalNames: weights.length };
 }
 
-/** Last available close on or before a date, for yield denominators. */
+/**
+ * Last available close on or before a date, for yield denominators.
+ * Uses binary search over ascending ISO dates (O(log N)).
+ */
 export function priceOnOrBefore(series: PriceSeries | undefined, date: string): number | null {
-  if (!series) return null;
-  let best: number | null = null;
-  for (let i = 0; i < series.dates.length; i++) {
-    if ((series.dates[i] as string) <= date) best = series.closes[i] as number;
-    else break;
+  if (!series || series.dates.length === 0) return null;
+  let lo = 0;
+  let hi = series.dates.length - 1;
+  let best = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >>> 1;
+    if ((series.dates[mid] as string) <= date) {
+      best = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
   }
-  return best;
+  return best >= 0 ? (series.closes[best] as number) : null;
 }
 
 export interface FeeDerivation {

@@ -1,6 +1,8 @@
 node_modules/
 dist/
 web/vendor/
+test-results/
+playwright-report/
 *.log
 
 # Raw scraped payloads are reproducible from `npm run scrape`; they are large

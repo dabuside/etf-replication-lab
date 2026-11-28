@@ -35,6 +35,15 @@ const METHOD_SPEC: Record<ReplicationMethod, MethodSpec | null> = {
 export const ALL_METHODS = Object.keys(METHOD_SPEC) as ReplicationMethod[];
 
 /**
+ * Number of disclosed constituents a method needs for its label to be
+ * literally satisfied (Infinity for full replication, 0 for buy_etf).
+ */
+export function methodRequiredCount(method: ReplicationMethod): number {
+  const spec = METHOD_SPEC[method];
+  return spec ? spec.count : 0;
+}
+
+/**
  * Build a replicated basket from a disclosed holdings snapshot.
  *
  * `weighted` renormalizes the ETF's own weights over the selected names, so a
